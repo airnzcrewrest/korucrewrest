@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Air NZ Cabin Crew Rest Calculator</title>
+  <style>
+    body { font-family: sans-serif; font-size: 16px; background: #f4f7e9; padding: 20px; }
+    .smaller-text { font-size: 0.9em; }
+    .larger-text { font-size: 1.1em; }
+    input, select { padding: 5px; margin: 5px; font-family: monospace; }
+    form, #warnings, #results, #senseCheck {
+      background: #fff; border-radius: 5px; padding: 15px; margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .warning { color: red; font-weight: bold; }
+    .rest-block { padding: 10px; border-radius: 5px; margin-bottom: 5px; }
+    .rest-block:nth-child(odd)  { background: #eef6ff; }
+    .rest-block:nth-child(even) { background: #fef7e0; }
+    .option-title { font-weight: bold; margin-top: 16px; display: block; }
+  </style>
+</head>
+<body>
+  <b>Air NZ Cabin Crew Rest Calculator</b>
+  <i>
+    <p class="smaller-text" style="color:darkred;margin:0">
+      <b>Compliant with Contractual and CASG/Fatigue Working Group Guidelines</b><br>
+      </p>
+  </i>
+
+  <form id="inputForm" onsubmit="event.preventDefault(); calculateTimes();">
+    <label class="larger-text">Select Route:</label>
+    <select id="route" required>
+      <option value="NON-ULR">NON-ULR</option>
+      <option value="AKL-JFK">AKL-JFK</option>
+      <option value="JFK-AKL">JFK-AKL</option>
+    </select><br><br>
+
+    <label class="larger-text">First Rest start time:</label>
+    <input type="time" id="firstRest" required> <i>(local destination time)</i><br><br>
+
+    <label class="larger-text">Top of Descent time:</label>
+    <input type="time" id="tod" required> <i>(local destination time)</i><br><br>
+
+    <label class="larger-text">Meal service duration (h:mm):</label>
+    <input type="text" id="service" pattern="\d+:\d{2}" required><br><br>
+
+    <input type="submit" value="Calculate">
+  </form>
+
+  <div id="warnings"></div>
+  <div id="results"></div>
+  <div id="senseCheck"></div>
+
+  <script>
+  function calculateTimes() {
+    // Inputs
+    const route      = document.getElementById('route').value;
+    const firstRest  = parseTime(document.getElementById('firstRest').value);
+    const tod        = parseTime(document.getElementById('tod').value);
+    const serviceMin = parseDuration(document.getElementById('service').value);
+
+    // Meal & rest windows
+    const mealEnd       = tod;
+    const mealStartBase = addMin(mealEnd, -serviceMin);
+    const finalRestEnd  = addMin(mealStartBase, -10);
+    const restWindowAll = calcDuration(firstRest, finalRestEnd);
+
+    // Meal warnings
+    const warnings = [];
+    if (serviceMin < 105) warnings.push('You have allowed less than 1h45 for meal service – deliberate?');
+    if (serviceMin > 150) warnings.push('You have allowed more than 2h30 for meal service – deliberate?');
+
+    // Clear outputs
+    const rdiv     = document.getElementById('results');
+    const senseDiv = document.getElementById('senseCheck');
+    rdiv.innerHTML     = '';
+    senseDiv.innerHTML = '';
+
+    // NON‑ULR
+    if (route === 'NON-ULR') {
+      const totalAvail = restWindowAll;
+      if (totalAvail < 70) {
+        rdiv.innerHTML = `<span class="warning">Not enough time for two rest blocks. Check inputs.</span>`;
+        showWarnings(false,false);
+        return;
+      }
+      let restLen = Math.floor((totalAvail -10)/2/5)*5;
+      let leftover = totalAvail -2*restLen -10;
+      let t = firstRest;
+      let a1s = t, a1e = addMin(a1s,restLen);
+      t = addMin(a1e,10);
+      let b1s = t, b1e = addMin(b1s,restLen);
+      // Fix rounding
+      if (b1e.getTime() !== finalRestEnd.getTime()) {
+        const diff = calcDuration(firstRest, finalRestEnd);
+        restLen = Math.floor((diff -10)/2/5)*5;
+        a1e = addMin(a1s,restLen);
+        t   = addMin(a1e,10);
+        b1e = addMin(t,restLen);
+        leftover = diff -2*restLen -10;
+      }
+      const adjMealStart = leftover>0 ? addMin(mealStartBase,-leftover) : mealStartBase;
+      const adjMealDur   = serviceMin + (leftover>0?leftover:0);
+
+      rdiv.innerHTML = `
+        <span class="option-title">Rest Pattern: Two equal blocks (NON‑ULR)</span>
+        <div class="rest-block"><b>Rest A:</b> ${format(a1s)} - ${format(a1e)} (${durStr(restLen)})</div>
+        <div class="rest-block"><b>Rest B:</b> ${format(b1s)} - ${format(b1e)} (${durStr(restLen)})</div>
+        <hr>
+        <b>Meal Service Start:</b> ${format(adjMealStart)}<br>
+        <b>Meal Duration:</b> ${durStr(adjMealDur)}<br>
+        <b>Top of Descent:</b> ${format(mealEnd)}<br>`;
+      senseDiv.innerHTML = `<i>Two equal long breaks; meal may extend slightly.</i>`;
+      showWarnings(false,false);
+      return;
+    }
+
+    // ULR Settings
+    const internalCO = 3*10;           // three 10‑min changeovers
+    const breakWindow= restWindowAll - internalCO;
+    const minShort   = 120, maxLong = 240;
+
+    // Determine longs & shorts
+    let shortRest = minShort;
+    let extra     = breakWindow -2*shortRest;
+    let longRest  = Math.floor(Math.min(extra/2, maxLong)/5)*5;
+    let rem       = extra -2*longRest;
+    if (longRest === maxLong && rem>0) {
+      let addS = Math.floor((rem/2)/5)*5;
+      shortRest += addS;
+      rem       -= 2*addS;
+    }
+    let leftoverP = breakWindow - (2*longRest +2*shortRest);
+
+    // Detect reversed pattern
+    const reversed = (route==='JFK-AKL');
+
+    // Preferred pattern
+    if (longRest>=minShort && shortRest>=minShort) {
+      // Adjust meal
+      const mealDurP   = serviceMin + leftoverP;
+      const mealStartP = addMin(mealEnd, -mealDurP);
+
+      // Build blocks
+      const blocks = reversed
+        ? [
+            {label:'Rest A Short', dur:shortRest},
+            {label:'Rest B Short', dur:shortRest},
+            {label:'Rest A Long',  dur:longRest},
+            {label:'Rest B Long',  dur:longRest}
+          ]
+        : [
+            {label:'Rest A Long',  dur:longRest},
+            {label:'Rest B Long',  dur:longRest},
+            {label:'Rest A Short', dur:shortRest},
+            {label:'Rest B Short', dur:shortRest}
+          ];
+
+      // Render
+      let html = `<span class="option-title">Option 1: ${reversed ? 'Short/Short/Long/Long' : 'Long/Long/Short/Short'} (Preferred)</span>`;
+      let t = firstRest;
+      blocks.forEach((blk,i)=>{
+        let end = addMin(t, blk.dur);
+        if (i===3) end = addMin(mealStartP, -10);  // snap final rest
+        html += `<div class="rest-block"><b>${blk.label}:</b> ${format(t)} - ${format(end)} (${durStr(blk.dur)})</div>`;
+        t = addMin(end,10);
+      });
+      html += `<hr>
+        <b>Meal Service Start:</b> ${format(mealStartP)}<br>
+        <b>Meal Duration:</b> ${durStr(mealDurP)}<br>
+        <b>Top of Descent:</b> ${format(mealEnd)}<br>`;
+      rdiv.innerHTML     = html;
+      senseDiv.innerHTML = `<i>Preferred pattern used.</i>`;
+      showWarnings(false,false);
+      return;
+    }
+
+    // ULR Fallbacks
+    let fallbackHtml='', anyFB=false, bothFB=false, onlyFB1=false;
+
+    // Fallback 1: one long rest each
+    {
+      const totalA = restWindowAll;
+      let fb1len = Math.floor((totalA -10)/2/5)*5;
+      if (fb1len >= 90) {
+        anyFB   = true;
+        onlyFB1 = true;
+        let t = firstRest;
+        let a1s = t, a1e = addMin(a1s, fb1len);
+        t = addMin(a1e,10);
+        let b1s = t, b1e = addMin(b1s, fb1len);
+        let rem1    = totalA - (2*fb1len +10);
+        const mealDur1   = serviceMin + (rem1>0?rem1:0);
+        const mealStart1 = addMin(mealEnd, -mealDur1);
+
+        fallbackHtml += `
+          <span class="option-title">Fallback Option 1: One long rest per group</span>
+          <div class="rest-block"><b>Rest A:</b> ${format(a1s)} - ${format(a1e)} (${durStr(fb1len)})</div>
+          <div class="rest-block"><b>Rest B:</b> ${format(b1s)} - ${format(b1e)} (${durStr(fb1len)})</div>
+          <hr>
+          <b>Meal Service Start:</b> ${format(mealStart1)}<br>
+          <b>Meal Duration:</b> ${durStr(mealDur1)}<br>
+          <b>Top of Descent:</b> ${format(mealEnd)}<br>`;
+      }
+    }
+
+    // Fallback 2: four‐break pattern (shorts fixed at 1h30)
+    {
+      const minShortFB   = 90;
+      const totalWindow2 = restWindowAll;
+      const needed       = 4*minShortFB +3*10; // 360+30=390
+      if (totalWindow2 >= needed) {
+        anyFB   = true;
+        bothFB  = bothFB || onlyFB1;
+        onlyFB1 = false;
+        let availLongs = totalWindow2 - (2*minShortFB +3*10);
+        let longFB     = Math.floor(availLongs/2/5)*5;
+        let leftoverFB = availLongs -2*longFB;
+        const mealDur2   = serviceMin + leftoverFB;
+        const mealStart2 = addMin(mealEnd, -mealDur2);
+
+        // Choose order based on route
+        const blocksFB = reversed
+          ? [
+              {label:'Rest A Short', dur:minShortFB},
+              {label:'Rest B Short', dur:minShortFB},
+              {label:'Rest A Long',  dur:longFB},
+              {label:'Rest B Long',  dur:longFB}
+            ]
+          : [
+              {label:'Rest A Long',  dur:longFB},
+              {label:'Rest B Long',  dur:longFB},
+              {label:'Rest A Short', dur:minShortFB},
+              {label:'Rest B Short', dur:minShortFB}
+            ];
+
+        let t2 = firstRest;
+        let html2 = `<span class="option-title">Fallback Option 2: ${reversed ? 'Short/Short/Long/Long' : 'Long/Long/Short/Short'}</span>`;
+        blocksFB.forEach((blk,i)=>{
+          let end = addMin(t2, blk.dur);
+          if (i===3) end = addMin(mealStart2, -10);
+          html2 += `<div class="rest-block"><b>${blk.label}:</b> ${format(t2)} - ${format(end)} (${durStr(blk.dur)})</div>`;
+          t2 = addMin(end,10);
+        });
+        html2 += `<hr>
+          <b>Meal Service Start:</b> ${format(mealStart2)}<br>
+          <b>Meal Duration:</b> ${durStr(mealDur2)}<br>
+          <b>Top of Descent:</b> ${format(mealEnd)}<br>`;
+        fallbackHtml += html2;
+      }
+    }
+
+    rdiv.innerHTML     = anyFB ? fallbackHtml : `<span class="warning">No legal rest pattern found.</span>`;
+    senseDiv.innerHTML = anyFB ? `<i>Preferred not possible; fallback shown.</i>` : '';
+    showWarnings(bothFB, onlyFB1);
+  }
+
+  function showWarnings(both=false, only1=false) {
+    let html = '<b>FYI:</b><hr>';
+    const route = document.getElementById('route').value;
+    if (route==='NON-ULR') html += '<p>You have chosen a NON‑ULR flight.</p>';
+    else if (route==='AKL-JFK') html += '<p>You have chosen NZ2 AKL‑JFK. CASG rules apply.</p>';
+    else html += '<p>You have chosen NZ1 JFK‑AKL. CASG rules apply.</p>';
+    if (both) {
+      html += `<p style="color:red;font-weight:bold;">
+        * Note – Total rest time per crew ≤ 4 h; ISM discretion to choose one of the two options below. Please sector report.
+      </p>`;
+    }
+    if (only1) {
+      html += `<p style="color:red;font-weight:bold;">
+        * Note – Total rest time less than usual for ULR; CASG recommends one long rest each. Please sector report.
+      </p>`;
+    }
+    if (warnings.length) {
+      html += warnings.map(w => `<p class="warning">${w}</p>`).join('');
+      if (route!=='NON-ULR') html += '<p><a href="#" target="_blank">ULR Rest Guideline Booklet</a></p>';
+      html += '<p class="warning">* Sector report any deviations.</p>';
+    }
+    document.getElementById('warnings').innerHTML = html;
+  }
+
+  // Helpers
+  function parseTime(s)      { const [h,m]=s.split(':'); return new Date(0,0,0,h,m); }
+  function parseDuration(s)  { const [h,m]=s.split(':'); return +h*60 + +m; }
+  function calcDuration(a,b) { let d=(b-a)/60000; return d<0?d+1440:d; }
+  function addMin(d,m)       { return new Date(d.getTime()+m*60000); }
+  function format(d)         { return d.getHours().toString().padStart(2,'0')+':' +
+                                          d.getMinutes().toString().padStart(2,'0'); }
+  function durStr(m)         { const h=Math.floor(m/60), mm=m%60; return `${h}h ${mm}m`; }
+  </script>
+</body>
+</html>
