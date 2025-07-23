@@ -123,7 +123,7 @@
       <div class="form-group">
         <label class="larger-text" for="service">
           🍽️Meal Service Length (h:mm):<br>
-          <small class="smaller-text"><i>(e.g. 1:45 or 145 for 1h 45m)</i></small>
+          <small class="smaller-text"><i>(e.g. 1:45 for 1h 45m)</i></small>
         </label>
         <input
           type="text"
@@ -150,40 +150,63 @@
         const raw   = this.value;
         const start = this.selectionStart;
         
-        // keep only up to 4 digits
         const digits = raw.replace(/\D/g, '').slice(0, 4);
 
-        // build the new formatted value (same logic as original)
         let formatted;
         if (digits.length > 2) {
           formatted = digits.slice(0, -2) + ':' + digits.slice(-2);
         } else if (digits.length > 0) {
           formatted = digits + (digits.length === 2 ? ':' : '');
         } else {
-          formatted = '';  // clear everything if no digits
+          formatted = '';
         }
 
-        // write it back
         this.value = formatted;
 
-        // Smartly set the cursor position
         if (isDeletion) {
-            // On deletion, the cursor's new position is simply where it was.
-            // This prevents the script from "correcting" the cursor after re-adding the colon.
             this.setSelectionRange(start, start);
         } else {
-            // On insertion, calculate the difference in length to move the cursor forward.
             const diff = formatted.length - raw.length;
             this.setSelectionRange(start + diff, start + diff);
         }
       });
     })();
 
+    // Function to round time inputs to the nearest 5 minutes
+    function roundToNearest5(event) {
+      const input = event.target;
+      if (!input.value) return;
+
+      let [hours, minutes] = input.value.split(':').map(Number);
+      let roundedMinutes = Math.round(minutes / 5) * 5;
+
+      if (roundedMinutes === 60) {
+        roundedMinutes = 0;
+        hours = (hours + 1) % 24;
+      }
+
+      const newHours = String(hours).padStart(2, '0');
+      const newMinutes = String(roundedMinutes).padStart(2, '0');
+      input.value = `${newHours}:${newMinutes}`;
+    }
+
+    // NOTE: The event listeners that called the rounding function have been removed.
+
     function calculateTimes() {
+      // --- MODIFIED: Round inputs on calculate, not on change ---
+      const firstRestInput = document.getElementById('firstRest');
+      const todInput = document.getElementById('tod');
+
+      // Round the values in the input fields first
+      roundToNearest5({ target: firstRestInput });
+      roundToNearest5({ target: todInput });
+      
+      // Now, read the (now rounded) values from the inputs
       const route      = document.getElementById('route').value;
-      const firstRest  = parseTime(document.getElementById('firstRest').value);
-      const tod        = parseTime(document.getElementById('tod').value);
+      const firstRest  = parseTime(firstRestInput.value);
+      const tod        = parseTime(todInput.value);
       const serviceMin = parseDuration(document.getElementById('service').value);
+      // --- END MODIFICATION ---
 
       const mealEnd       = tod;
       const mealStartBase = addMin(mealEnd, -serviceMin);
@@ -203,7 +226,7 @@
         const remaining = calcDuration(firstRest, tod) + 30;
         const h = Math.floor(remaining / 60);
         const m = remaining % 60;
-        senseDiv.innerHTML = `<i>Sense Check: When First Rest starts, ${h}h ${m}m flight time remaining should be displaying on Airshow (+/– 10 min)</i>`;
+        senseDiv.innerHTML = `<i>Sense Check: When First Rest starts, ${h}h ${m}m remaining in flight should be displaying on Airshow (+/– 10 min)</i>`;
       }
 
       // NON-ULR branch
