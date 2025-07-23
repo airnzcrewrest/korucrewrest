@@ -42,7 +42,6 @@
     }
     .rest-block:nth-child(odd)   { background: #eef6ff; }
     .rest-block:nth-child(even)  { background: #fef7e0; }
-    /* meal‑container to isolate meal-block nth-child styling */
     .meal-container .meal-block:nth-child(odd)  { background: #e0ffe0; }
     .meal-container .meal-block:nth-child(even) { background: #e0f7ff; }
     .option-title { font-weight: bold; margin-top: 16px; display: block; }
@@ -124,7 +123,7 @@
       <div class="form-group">
         <label class="larger-text" for="service">
           🍽️Meal Service Length (h:mm):<br>
-          <small class="smaller-text"><i>(e.g. 1:45 for 1h 45m)</i></small>
+          <small class="smaller-text"><i>(e.g. 1:45 for 1h 45m)</i></small>
         </label>
         <input
           type="text"
@@ -143,6 +142,19 @@
   <div id="senseCheck"></div>
 
   <script>
+    // Auto‑colon insertion on numeric keypad for duration field
+    (function() {
+      const svc = document.getElementById('service');
+      svc.addEventListener('input', e => {
+        let digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+        if (digits.length > 2) {
+          e.target.value = digits.slice(0, -2) + ':' + digits.slice(-2);
+        } else if (digits.length > 0) {
+          e.target.value = digits + (digits.length === 2 ? ':' : '');
+        }
+      });
+    })();
+
     function calculateTimes() {
       const route      = document.getElementById('route').value;
       const firstRest  = parseTime(document.getElementById('firstRest').value);
@@ -189,12 +201,10 @@
           t       = addMin(a1e, 10);
           b1e     = addMin(t, restLen);
         }
-        // adjust leftover into meal
         const leftover     = calcDuration(b1e, finalRestEnd);
         const adjMealStart = leftover > 0 ? addMin(mealStartBase, -leftover) : mealStartBase;
         const adjMealDur   = serviceMin + (leftover > 0 ? leftover : 0);
 
-        // render NON-ULR
         rdiv.innerHTML = `
           <span class="option-title">Rest Pattern: Two equal blocks (NON‑ULR)</span>
           <div class="rest-block"><b>First Rest:</b> ${format(a1s)} – ${format(a1e)} (${durStr(restLen)})</div>
@@ -261,7 +271,7 @@
             <div class="meal-block"><b>Meal Service Duration:</b> ${durStr(mealDurP)}</div>
             <div class="meal-block"><b>Top of Descent:</b> ${format(mealEnd)}</div>
           </div>`;
-        rdiv.innerHTML = html;
+        document.getElementById('results').innerHTML = html;
         renderSenseCheck();
         showWarnings(sumRest <= 240, false, warnings);
         return;
@@ -325,7 +335,6 @@
                   { label: 'Rest B Short', dur: minShortFB }
                 ];
             let t2 = firstRest;
-            // insert a bigger line before the second option
             fallbackHtml += `<hr class="big-sep"><span class="option-title">Fallback Option 2: ${reversed ? 'Short/Short/Long/Long' : 'Long/Long/Short/Short'} Pattern</span>`;
             blocks2.forEach((blk, i) => {
               let end = addMin(t2, blk.dur);
@@ -342,12 +351,9 @@
           }
         }
 
-        // Option B tweak: never show “only1” if bothFB
-        if (bothFB) {
-          onlyFB1 = false;
-        }
+        if (bothFB) onlyFB1 = false;
 
-        rdiv.innerHTML = anyFB
+        document.getElementById('results').innerHTML = anyFB
           ? fallbackHtml
           : `<span class="warning">No legal rest pattern found.</span>`;
         renderSenseCheck();
