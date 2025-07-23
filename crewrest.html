@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,7 +84,7 @@
   </style>
 </head>
 <body>
-  <b class="main-heading">Air NZ Cabin Crew Rest Calculator v1.1</b>
+  <b class="main-heading">Air NZ Cabin Crew Rest Calculator</b>
   <i>
     <p class="smaller-text" style="margin:0">
       <b>Compliant with Contractual and CASG/Fatigue Working Group Guidelines</b><br>
@@ -143,16 +142,18 @@
   <div id="senseCheck"></div>
 
   <script>
-    // Live auto‑colon insertion with caret preservation
+    // Live auto‑colon insertion with improved deletion handling
     (function() {
       const svc = document.getElementById('service');
       svc.addEventListener('input', function(e) {
+        const isDeletion = e.inputType && e.inputType.includes('delete');
         const raw   = this.value;
         const start = this.selectionStart;
+        
         // keep only up to 4 digits
         const digits = raw.replace(/\D/g, '').slice(0, 4);
 
-        // build the new formatted value
+        // build the new formatted value (same logic as original)
         let formatted;
         if (digits.length > 2) {
           formatted = digits.slice(0, -2) + ':' + digits.slice(-2);
@@ -162,12 +163,19 @@
           formatted = '';  // clear everything if no digits
         }
 
-        // compute how the length changed, so we can reset the caret
-        const diff = formatted.length - raw.length;
-
-        // write it back and restore the caret
+        // write it back
         this.value = formatted;
-        this.setSelectionRange(start + diff, start + diff);
+
+        // Smartly set the cursor position
+        if (isDeletion) {
+            // On deletion, the cursor's new position is simply where it was.
+            // This prevents the script from "correcting" the cursor after re-adding the colon.
+            this.setSelectionRange(start, start);
+        } else {
+            // On insertion, calculate the difference in length to move the cursor forward.
+            const diff = formatted.length - raw.length;
+            this.setSelectionRange(start + diff, start + diff);
+        }
       });
     })();
 
@@ -407,4 +415,3 @@
   </script>
 </body>
 </html>
-```
