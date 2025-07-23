@@ -123,7 +123,7 @@
       <div class="form-group">
         <label class="larger-text" for="service">
           🍽️Meal Service Length (h:mm):<br>
-          <small class="smaller-text"><i>(e.g. 1:45 for 1h 45m)</i></small>
+          <small class="smaller-text"><i>(e.g. 1:45 for 1h 45m)</i></small>
         </label>
         <input
           type="text"
@@ -142,16 +142,31 @@
   <div id="senseCheck"></div>
 
   <script>
-    // Auto‑colon insertion on numeric keypad for duration field
+    // Live auto‑colon insertion with caret preservation
     (function() {
       const svc = document.getElementById('service');
-      svc.addEventListener('input', e => {
-        let digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+      svc.addEventListener('input', function(e) {
+        const raw   = this.value;
+        const start = this.selectionStart;
+        // keep only up to 4 digits
+        const digits = raw.replace(/\D/g, '').slice(0, 4);
+
+        // build the new formatted value
+        let formatted;
         if (digits.length > 2) {
-          e.target.value = digits.slice(0, -2) + ':' + digits.slice(-2);
+          formatted = digits.slice(0, -2) + ':' + digits.slice(-2);
         } else if (digits.length > 0) {
-          e.target.value = digits + (digits.length === 2 ? ':' : '');
+          formatted = digits + (digits.length === 2 ? ':' : '');
+        } else {
+          formatted = '';  // clear everything if no digits
         }
+
+        // compute how the length changed, so we can reset the caret
+        const diff = formatted.length - raw.length;
+
+        // write it back and restore the caret
+        this.value = formatted;
+        this.setSelectionRange(start + diff, start + diff);
       });
     })();
 
@@ -167,8 +182,8 @@
       const restWindowAll = calcDuration(firstRest, finalRestEnd);
 
       const warnings = [];
-      if (serviceMin < 105) warnings.push('You have allowed less than 1h45 for meal service – deliberate?');
-      if (serviceMin > 150) warnings.push('You have allowed more than 2h30 for meal service – deliberate?');
+      if (serviceMin < 105) warnings.push('You have allowed less than 1h45 for meal service – deliberate?');
+      if (serviceMin > 150) warnings.push('You have allowed more than 2h30 for meal service – deliberate?');
 
       const rdiv     = document.getElementById('results');
       const senseDiv = document.getElementById('senseCheck');
@@ -179,7 +194,7 @@
         const remaining = calcDuration(firstRest, tod) + 30;
         const h = Math.floor(remaining / 60);
         const m = remaining % 60;
-        senseDiv.innerHTML = `<i>Sense Check: When First Rest starts, ${h}h ${m}m remaining in flight should be displaying on Airshow (+/– 10 min)</i>`;
+        senseDiv.innerHTML = `<i>Sense Check: When First Rest starts, ${h}h ${m}m remaining in flight should be displaying on Airshow (+/– 10 min)</i>`;
       }
 
       // NON-ULR branch
