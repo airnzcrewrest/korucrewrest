@@ -320,7 +320,7 @@
           </div>`;
         document.getElementById('results').innerHTML = html;
         renderSenseCheck();
-        showWarnings(sumRest <= 240, false, warnings);
+        showWarnings(false, false, warnings);   // no multi‑option flag for preferred pattern
         return;
       }
 
