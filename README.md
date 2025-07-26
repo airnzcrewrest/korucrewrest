@@ -1,5 +1,7 @@
 # Air NZ Cabin Crew Rest Calculator (`crewrest.html`)
 
+Calculator location: [https://airnzcrewrest.github.io/korucrewrest/crewrest.html](https://airnzcrewrest.github.io/korucrewrest/crewrest.html)
+
 ## Overview
 
 A self‑contained HTML / JavaScript tool for planning **contract and safety compliant** cabin‑crew rest and meal schedules on Air New Zealand flights. It covers both **NON‑ULR** (short/medium) and **ULR** (AKL ⇄ JFK) services, embedding contractual rules plus CASG / Fatigue Working Group guidance.
