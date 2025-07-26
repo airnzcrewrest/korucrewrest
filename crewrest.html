@@ -226,7 +226,7 @@
         const remaining = calcDuration(firstRest, tod) + 30;
         const h = Math.floor(remaining / 60);
         const m = remaining % 60;
-        senseDiv.innerHTML = `<i>Sense Check: When First Rest starts, ${h}h ${m}m remaining in flight should be displaying on Airshow (+/– 10 min)</i>`;
+        senseDiv.innerHTML = `<i>Sense Check: When First Rest starts, ${h}h ${m}m remaining until landing should be displaying on Airshow (+/– 10 min)</i>`;
       }
 
       // NON-ULR branch
@@ -414,7 +414,7 @@
       if (route === 'NON-ULR') {
         html += '<p>You have chosen a NON‑ULR flight.</p>';
         if (window.nonUlrRestLen > 240)
-          html += '<p class="warning">Unusually long rest – please check your times carefully.</p>';
+          html += '<p class="warning">Unusually long rest for non-ULR – please check your times carefully.</p>';
       } else if (route === 'AKL-JFK') {
         html += '<p>You have chosen NZ2 AKL‑JFK. CASG guidelines apply. Rest patterns are designed to minimize overall crew fatigue for operational safety and must not be changed unless operationally necessary.</p>';
       } else {
